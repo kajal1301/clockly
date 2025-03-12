@@ -199,8 +199,8 @@ const Dashboard = () => {
                           <div>
                             <h4 className="font-medium">{entry.description}</h4>
                             <div className="text-sm text-muted-foreground">
-                              <div>{getProjectNameById(entry.projectId)}</div>
-                              <div>{getCustomerNameById(entry.customerId)}</div>
+                              <div>{getProjectNameById(entry.project_id)}</div>
+                              <div>{getCustomerNameById(entry.customer_id)}</div>
                             </div>
                           </div>
                           <div className="text-right">
@@ -208,7 +208,7 @@ const Dashboard = () => {
                               {formatDuration(entry.duration)}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {formatTimeRange(entry.startTime, entry.endTime)}
+                              {formatTimeRange(entry.start_time, entry.end_time)}
                             </p>
                             {entry.billable && (
                               <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">
