@@ -77,17 +77,23 @@ export const db = {
   customers: {
     getAll: async (): Promise<Customer[]> => {
       if (supabase) {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('*')
-          .order('name');
-        
-        if (error) {
-          console.error('Error fetching customers:', error);
-          return [];
+        try {
+          const { data, error } = await supabase
+            .from('customers')
+            .select('*')
+            .order('name');
+          
+          if (error) {
+            console.error('Error fetching customers:', error);
+            return [];
+          }
+          
+          return data || [];
+        } catch (error) {
+          console.error('Supabase customers.getAll error:', error);
+          // Fallback to localStorage if Supabase query fails
+          return getFromStorage<Customer>(STORAGE_KEYS.CUSTOMERS);
         }
-        
-        return data || [];
       } else {
         // Fallback to localStorage
         return getFromStorage<Customer>(STORAGE_KEYS.CUSTOMERS);
@@ -95,18 +101,25 @@ export const db = {
     },
     getById: async (id: string): Promise<Customer | null> => {
       if (supabase) {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('id', id)
-          .single();
-        
-        if (error) {
-          console.error('Error fetching customer:', error);
-          return null;
+        try {
+          const { data, error } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching customer:', error);
+            return null;
+          }
+          
+          return data;
+        } catch (error) {
+          console.error('Supabase customers.getById error:', error);
+          // Fallback to localStorage if Supabase query fails
+          const customers = getFromStorage<Customer>(STORAGE_KEYS.CUSTOMERS);
+          return customers.find(c => c.id === id) || null;
         }
-        
-        return data;
       } else {
         // Fallback to localStorage
         const customers = getFromStorage<Customer>(STORAGE_KEYS.CUSTOMERS);
@@ -115,18 +128,34 @@ export const db = {
     },
     create: async (customer: Omit<Customer, 'id' | 'created_at'>): Promise<Customer | null> => {
       if (supabase) {
-        const { data, error } = await supabase
-          .from('customers')
-          .insert(customer)
-          .select()
-          .single();
-        
-        if (error) {
-          console.error('Error creating customer:', error);
-          return null;
+        try {
+          const { data, error } = await supabase
+            .from('customers')
+            .insert(customer)
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Error creating customer:', error);
+            return null;
+          }
+          
+          return data;
+        } catch (error) {
+          console.error('Supabase customers.create error:', error);
+          // Fallback to localStorage if Supabase query fails
+          const newCustomer: Customer = {
+            ...customer,
+            id: generateId(),
+            created_at: new Date().toISOString()
+          };
+          
+          const customers = getFromStorage<Customer>(STORAGE_KEYS.CUSTOMERS);
+          customers.push(newCustomer);
+          saveToStorage(STORAGE_KEYS.CUSTOMERS, customers);
+          
+          return newCustomer;
         }
-        
-        return data;
       } else {
         // Fallback to localStorage
         const newCustomer: Customer = {
@@ -147,160 +176,355 @@ export const db = {
   // Project methods
   projects: {
     getAll: async (): Promise<Project[]> => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('name');
-      
-      if (error) {
-        console.error('Error fetching projects:', error);
-        return [];
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('projects')
+            .select('*')
+            .order('name');
+          
+          if (error) {
+            console.error('Error fetching projects:', error);
+            return [];
+          }
+          
+          return data || [];
+        } catch (error) {
+          console.error('Supabase projects.getAll error:', error);
+          // Fallback to localStorage if Supabase query fails
+          return getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
+        }
+      } else {
+        // Fallback to localStorage
+        return getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
       }
-      
-      return data || [];
     },
     getByCustomerId: async (customerId: string): Promise<Project[]> => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('customer_id', customerId)
-        .order('name');
-      
-      if (error) {
-        console.error('Error fetching projects by customer:', error);
-        return [];
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('customer_id', customerId)
+            .order('name');
+          
+          if (error) {
+            console.error('Error fetching projects by customer:', error);
+            return [];
+          }
+          
+          return data || [];
+        } catch (error) {
+          console.error('Supabase projects.getByCustomerId error:', error);
+          // Fallback to localStorage
+          const projects = getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
+          return projects.filter(p => p.customer_id === customerId);
+        }
+      } else {
+        // Fallback to localStorage
+        const projects = getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
+        return projects.filter(p => p.customer_id === customerId);
       }
-      
-      return data || [];
     },
     getById: async (id: string): Promise<Project | null> => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching project:', error);
-        return null;
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching project:', error);
+            return null;
+          }
+          
+          return data;
+        } catch (error) {
+          console.error('Supabase projects.getById error:', error);
+          // Fallback to localStorage
+          const projects = getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
+          return projects.find(p => p.id === id) || null;
+        }
+      } else {
+        // Fallback to localStorage
+        const projects = getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
+        return projects.find(p => p.id === id) || null;
       }
-      
-      return data;
     },
     create: async (project: Omit<Project, 'id' | 'created_at'>): Promise<Project | null> => {
-      const { data, error } = await supabase
-        .from('projects')
-        .insert(project)
-        .select()
-        .single();
-      
-      if (error) {
-        console.error('Error creating project:', error);
-        return null;
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('projects')
+            .insert(project)
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Error creating project:', error);
+            return null;
+          }
+          
+          return data;
+        } catch (error) {
+          console.error('Supabase projects.create error:', error);
+          // Fallback to localStorage
+          const newProject: Project = {
+            ...project,
+            id: generateId(),
+            created_at: new Date().toISOString()
+          };
+          
+          const projects = getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
+          projects.push(newProject);
+          saveToStorage(STORAGE_KEYS.PROJECTS, projects);
+          
+          return newProject;
+        }
+      } else {
+        // Fallback to localStorage
+        const newProject: Project = {
+          ...project,
+          id: generateId(),
+          created_at: new Date().toISOString()
+        };
+        
+        const projects = getFromStorage<Project>(STORAGE_KEYS.PROJECTS);
+        projects.push(newProject);
+        saveToStorage(STORAGE_KEYS.PROJECTS, projects);
+        
+        return newProject;
       }
-      
-      return data;
     }
   },
   
   // Time entries methods
   timeEntries: {
     getAll: async (): Promise<TimeEntry[]> => {
-      const { data, error } = await supabase
-        .from('time_entries')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching time entries:', error);
-        return [];
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('time_entries')
+            .select('*')
+            .order('created_at', { ascending: false });
+          
+          if (error) {
+            console.error('Error fetching time entries:', error);
+            return [];
+          }
+          
+          return data || [];
+        } catch (error) {
+          console.error('Supabase timeEntries.getAll error:', error);
+          // Fallback to localStorage
+          return getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+        }
+      } else {
+        // Fallback to localStorage
+        return getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
       }
-      
-      return data || [];
     },
     getByUserId: async (userId: string): Promise<TimeEntry[]> => {
-      const { data, error } = await supabase
-        .from('time_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching time entries by user:', error);
-        return [];
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('time_entries')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+          
+          if (error) {
+            console.error('Error fetching time entries by user:', error);
+            return [];
+          }
+          
+          return data || [];
+        } catch (error) {
+          console.error('Supabase timeEntries.getByUserId error:', error);
+          // Fallback to localStorage
+          const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+          return entries.filter(e => e.user_id === userId);
+        }
+      } else {
+        // Fallback to localStorage
+        const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+        return entries.filter(e => e.user_id === userId);
       }
-      
-      return data || [];
     },
     getByCustomerId: async (customerId: string): Promise<TimeEntry[]> => {
-      const { data, error } = await supabase
-        .from('time_entries')
-        .select('*')
-        .eq('customer_id', customerId)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching time entries by customer:', error);
-        return [];
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('time_entries')
+            .select('*')
+            .eq('customer_id', customerId)
+            .order('created_at', { ascending: false });
+          
+          if (error) {
+            console.error('Error fetching time entries by customer:', error);
+            return [];
+          }
+          
+          return data || [];
+        } catch (error) {
+          console.error('Supabase timeEntries.getByCustomerId error:', error);
+          // Fallback to localStorage
+          const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+          return entries.filter(e => e.customer_id === customerId);
+        }
+      } else {
+        // Fallback to localStorage
+        const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+        return entries.filter(e => e.customer_id === customerId);
       }
-      
-      return data || [];
     },
     getByProjectId: async (projectId: string): Promise<TimeEntry[]> => {
-      const { data, error } = await supabase
-        .from('time_entries')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching time entries by project:', error);
-        return [];
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('time_entries')
+            .select('*')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: false });
+          
+          if (error) {
+            console.error('Error fetching time entries by project:', error);
+            return [];
+          }
+          
+          return data || [];
+        } catch (error) {
+          console.error('Supabase timeEntries.getByProjectId error:', error);
+          // Fallback to localStorage
+          const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+          return entries.filter(e => e.project_id === projectId);
+        }
+      } else {
+        // Fallback to localStorage
+        const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+        return entries.filter(e => e.project_id === projectId);
       }
-      
-      return data || [];
     },
     create: async (entry: Omit<TimeEntry, 'id' | 'created_at'>): Promise<TimeEntry | null> => {
-      const { data, error } = await supabase
-        .from('time_entries')
-        .insert(entry)
-        .select()
-        .single();
-      
-      if (error) {
-        console.error('Error creating time entry:', error);
-        return null;
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('time_entries')
+            .insert(entry)
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Error creating time entry:', error);
+            return null;
+          }
+          
+          return data;
+        } catch (error) {
+          console.error('Supabase timeEntries.create error:', error);
+          // Fallback to localStorage
+          const newEntry: TimeEntry = {
+            ...entry,
+            id: generateId(),
+            created_at: new Date().toISOString()
+          };
+          
+          const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+          entries.push(newEntry);
+          saveToStorage(STORAGE_KEYS.TIME_ENTRIES, entries);
+          
+          return newEntry;
+        }
+      } else {
+        // Fallback to localStorage
+        const newEntry: TimeEntry = {
+          ...entry,
+          id: generateId(),
+          created_at: new Date().toISOString()
+        };
+        
+        const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+        entries.push(newEntry);
+        saveToStorage(STORAGE_KEYS.TIME_ENTRIES, entries);
+        
+        return newEntry;
       }
-      
-      return data;
     },
     update: async (id: string, updates: Partial<TimeEntry>): Promise<TimeEntry | null> => {
-      const { data, error } = await supabase
-        .from('time_entries')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) {
-        console.error('Error updating time entry:', error);
-        return null;
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('time_entries')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Error updating time entry:', error);
+            return null;
+          }
+          
+          return data;
+        } catch (error) {
+          console.error('Supabase timeEntries.update error:', error);
+          // Fallback to localStorage
+          const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+          const entryIndex = entries.findIndex(e => e.id === id);
+          
+          if (entryIndex === -1) return null;
+          
+          const updatedEntry = { ...entries[entryIndex], ...updates };
+          entries[entryIndex] = updatedEntry;
+          saveToStorage(STORAGE_KEYS.TIME_ENTRIES, entries);
+          
+          return updatedEntry;
+        }
+      } else {
+        // Fallback to localStorage
+        const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+        const entryIndex = entries.findIndex(e => e.id === id);
+        
+        if (entryIndex === -1) return null;
+        
+        const updatedEntry = { ...entries[entryIndex], ...updates };
+        entries[entryIndex] = updatedEntry;
+        saveToStorage(STORAGE_KEYS.TIME_ENTRIES, entries);
+        
+        return updatedEntry;
       }
-      
-      return data;
     },
     delete: async (id: string): Promise<boolean> => {
-      const { error } = await supabase
-        .from('time_entries')
-        .delete()
-        .eq('id', id);
-      
-      if (error) {
-        console.error('Error deleting time entry:', error);
-        return false;
+      if (supabase) {
+        try {
+          const { error } = await supabase
+            .from('time_entries')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            console.error('Error deleting time entry:', error);
+            return false;
+          }
+          
+          return true;
+        } catch (error) {
+          console.error('Supabase timeEntries.delete error:', error);
+          // Fallback to localStorage
+          const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+          const filteredEntries = entries.filter(e => e.id !== id);
+          saveToStorage(STORAGE_KEYS.TIME_ENTRIES, filteredEntries);
+          return true;
+        }
+      } else {
+        // Fallback to localStorage
+        const entries = getFromStorage<TimeEntry>(STORAGE_KEYS.TIME_ENTRIES);
+        const filteredEntries = entries.filter(e => e.id !== id);
+        saveToStorage(STORAGE_KEYS.TIME_ENTRIES, filteredEntries);
+        return true;
       }
-      
-      return true;
     }
   }
 };
@@ -316,79 +540,20 @@ export const initializeDatabase = async (): Promise<void> => {
       
       if (error) {
         console.error('Supabase connection error:', error);
-        // If tables don't exist yet, we can create them
-        // This would typically be done through migrations in a production app
-        
-        // For demo purposes, we'll try to create the tables if they don't exist
-        await createTablesIfNeeded();
+        // Initialize with local storage as fallback
+        initializeLocalStorageData();
       } else {
         console.log('Connected to Supabase successfully');
       }
     } catch (error) {
       console.error('Error initializing Supabase:', error);
+      // Initialize with local storage as fallback
+      initializeLocalStorageData();
     }
   } else {
     console.log('Using localStorage fallback (Supabase not configured)');
-    
     // Initialize with some demo data if empty
     initializeLocalStorageData();
-  }
-};
-
-// Function to create Supabase tables if they don't exist
-const createTablesIfNeeded = async (): Promise<void> => {
-  if (!supabase) return;
-  
-  console.log('Attempting to create tables if they don\'t exist...');
-  
-  // Note: This is a simplified approach. In a production app,
-  // you would use migrations or the Supabase dashboard to set up tables
-  try {
-    // Create customers table
-    const createCustomers = await supabase.rpc('create_table_if_not_exists', {
-      table_name: 'customers',
-      definition: `
-        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name text NOT NULL,
-        email text,
-        company text,
-        created_at timestamp with time zone DEFAULT now()
-      `
-    });
-    
-    // Create projects table
-    const createProjects = await supabase.rpc('create_table_if_not_exists', {
-      table_name: 'projects',
-      definition: `
-        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name text NOT NULL,
-        customer_id uuid REFERENCES customers(id),
-        active boolean DEFAULT true,
-        created_at timestamp with time zone DEFAULT now()
-      `
-    });
-    
-    // Create time_entries table
-    const createTimeEntries = await supabase.rpc('create_table_if_not_exists', {
-      table_name: 'time_entries',
-      definition: `
-        id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-        description text NOT NULL,
-        project_id uuid REFERENCES projects(id),
-        customer_id uuid REFERENCES customers(id),
-        start_time timestamp with time zone NOT NULL,
-        end_time timestamp with time zone NOT NULL,
-        duration integer NOT NULL,
-        billable boolean DEFAULT true,
-        user_id uuid NOT NULL,
-        created_at timestamp with time zone DEFAULT now()
-      `
-    });
-    
-    console.log('Tables created or already exist');
-  } catch (error) {
-    console.error('Error creating tables:', error);
-    console.log('Tables will need to be created manually in the Supabase dashboard');
   }
 };
 

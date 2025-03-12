@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Plus, Clock, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -248,7 +249,7 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
             <SelectValue placeholder="Customer" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Customers</SelectItem>
+            <SelectItem value="all-customers">All Customers</SelectItem>
             {customers.map(customer => (
               <SelectItem key={customer.id} value={customer.id}>
                 {customer.name}
