@@ -9,82 +9,102 @@ import DashboardStats from '@/components/dashboard/DashboardStats';
 import TimeChart from '@/components/dashboard/TimeChart';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-
-// Mock data - in a real app, this would come from an API
-const mockProjects = [
-  { id: 'project-1', name: 'Website Redesign' },
-  { id: 'project-2', name: 'Mobile App Development' },
-  { id: 'project-3', name: 'Marketing Campaign' },
-  { id: 'project-4', name: 'Client Consultation' },
-];
-
-const mockTimeEntries = [
-  {
-    id: 'entry-1',
-    description: 'Design homepage wireframes',
-    projectId: 'project-1',
-    startTime: '2023-10-22T08:30:00Z',
-    endTime: '2023-10-22T10:45:00Z',
-    duration: 8100, // 2h 15m in seconds
-  },
-  {
-    id: 'entry-2',
-    description: 'Team meeting',
-    projectId: 'project-4',
-    startTime: '2023-10-22T13:00:00Z',
-    endTime: '2023-10-22T14:00:00Z',
-    duration: 3600, // 1h in seconds
-  },
-];
-
-const mockWeeklyData = [
-  { name: 'Mon', hours: 6.5 },
-  { name: 'Tue', hours: 7.2 },
-  { name: 'Wed', hours: 8.1 },
-  { name: 'Thu', hours: 6.8 },
-  { name: 'Fri', hours: 5.5 },
-  { name: 'Sat', hours: 2.0 },
-  { name: 'Sun', hours: 0.5 },
-];
-
-const mockProjectData = [
-  { name: 'Website Redesign', hours: 12.5, color: '#3b82f6' },
-  { name: 'Mobile App', hours: 8.2, color: '#10b981' },
-  { name: 'Marketing', hours: 6.8, color: '#f59e0b' },
-  { name: 'Consultation', hours: 4.5, color: '#8b5cf6' },
-];
-
-const mockStats = {
-  hoursToday: 3.25,
-  hoursThisWeek: 28.2,
-  activeProjects: 4,
-};
-
-interface TimeEntry {
-  id: string;
-  description: string;
-  projectId: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-}
+import { db, TimeEntry, Project, Customer } from '@/lib/db';
 
 const Dashboard = () => {
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(mockTimeEntries);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [date, setDate] = useState(new Date());
   
+  // Load data from our database service
   useEffect(() => {
-    // In a real app, this would fetch data from an API
-    // based on the selected date
-  }, [date]);
+    // In a real app, we'd filter by the current user
+    setTimeEntries(db.timeEntries.getAll());
+    setProjects(db.projects.getAll());
+    setCustomers(db.customers.getAll());
+  }, []);
+  
+  // Chart data
+  const generateWeeklyData = () => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days.map(day => {
+      // In a real app, this would filter entries by the day
+      const randomHours = Math.random() * 8 + 1;
+      return { name: day, hours: randomHours };
+    });
+  };
+  
+  const generateProjectData = () => {
+    // Generate random colors for projects
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+    
+    return projects.slice(0, 5).map((project, index) => {
+      // In a real app, this would calculate actual hours per project
+      const randomHours = Math.random() * 15 + 2;
+      return {
+        name: project.name,
+        hours: randomHours,
+        color: colors[index % colors.length]
+      };
+    });
+  };
+  
+  // Generate mock weekly and project data
+  const weeklyData = generateWeeklyData();
+  const projectData = generateProjectData();
+  
+  // Calculate stats based on time entries
+  const calculateStats = () => {
+    // In a real app, these would be calculated from actual time entries
+    const hoursToday = timeEntries
+      .filter(entry => {
+        const entryDate = new Date(entry.endTime);
+        const today = new Date();
+        return (
+          entryDate.getDate() === today.getDate() &&
+          entryDate.getMonth() === today.getMonth() &&
+          entryDate.getFullYear() === today.getFullYear()
+        );
+      })
+      .reduce((total, entry) => total + (entry.duration / 3600), 0);
+    
+    // Get the number of hours for the current week
+    const hoursThisWeek = timeEntries
+      .filter(entry => {
+        const entryDate = new Date(entry.endTime);
+        const today = new Date();
+        const firstDayOfWeek = new Date(today);
+        firstDayOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Monday
+        firstDayOfWeek.setHours(0, 0, 0, 0);
+        return entryDate >= firstDayOfWeek;
+      })
+      .reduce((total, entry) => total + (entry.duration / 3600), 0);
+    
+    // Count unique project IDs in time entries to get active projects
+    const activeProjectIds = new Set(timeEntries.map(entry => entry.projectId));
+    
+    return {
+      hoursToday,
+      hoursThisWeek,
+      activeProjects: activeProjectIds.size
+    };
+  };
+  
+  const stats = calculateStats();
   
   const handleTimeEntryCreate = (entry: TimeEntry) => {
     setTimeEntries(prev => [entry, ...prev]);
   };
   
   const getProjectNameById = (id: string) => {
-    const project = mockProjects.find(p => p.id === id);
+    const project = projects.find(p => p.id === id);
     return project ? project.name : 'Untitled Project';
+  };
+  
+  const getCustomerNameById = (id: string) => {
+    const customer = customers.find(c => c.id === id);
+    return customer ? customer.name : 'Unknown Customer';
   };
   
   const formatDuration = (seconds: number) => {
@@ -132,16 +152,15 @@ const Dashboard = () => {
           
           <div className="grid grid-cols-1 gap-8">
             <TimeTracker 
-              projects={mockProjects}
               onTimeEntryCreate={handleTimeEntryCreate}
             />
             
-            <DashboardStats stats={mockStats} />
+            <DashboardStats stats={stats} />
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <TimeChart 
-                weeklyData={mockWeeklyData}
-                projectData={mockProjectData}
+                weeklyData={weeklyData}
+                projectData={projectData}
               />
               
               <div className="glass rounded-xl p-5 animate-fade-in">
@@ -156,14 +175,15 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {timeEntries.map(entry => (
+                    {timeEntries.slice(0, 5).map(entry => (
                       <div key={entry.id} className="pb-4">
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-medium">{entry.description}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {getProjectNameById(entry.projectId)}
-                            </p>
+                            <div className="text-sm text-muted-foreground">
+                              <div>{getProjectNameById(entry.projectId)}</div>
+                              <div>{getCustomerNameById(entry.customerId)}</div>
+                            </div>
                           </div>
                           <div className="text-right">
                             <p className="font-medium">
@@ -172,6 +192,11 @@ const Dashboard = () => {
                             <p className="text-xs text-muted-foreground">
                               {formatTimeRange(entry.startTime, entry.endTime)}
                             </p>
+                            {entry.billable && (
+                              <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">
+                                Billable
+                              </span>
+                            )}
                           </div>
                         </div>
                         <Separator className="mt-4" />

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Plus, Clock } from 'lucide-react';
+import { Play, Pause, Plus, Clock, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,24 +19,58 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { formatTime } from '@/lib/utils';
+import { db, TimeEntry, Customer, Project } from '@/lib/db';
+import { toast } from 'sonner';
 
 interface TimeTrackerProps {
-  projects: { id: string; name: string }[];
-  onTimeEntryCreate: (entry: any) => void;
+  onTimeEntryCreate: (entry: TimeEntry) => void;
 }
 
-const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
+const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
   const [isTracking, setIsTracking] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [description, setDescription] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [isBillable, setIsBillable] = useState(true);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
+  
   const [manualEntry, setManualEntry] = useState({
     hours: '',
     minutes: '',
     description: '',
     project: '',
+    customer: '',
+    billable: true
   });
+  
+  // Load customers and projects on component mount
+  useEffect(() => {
+    setCustomers(db.customers.getAll());
+    setProjects(db.projects.getAll());
+  }, []);
+  
+  // Filter projects when customer changes
+  useEffect(() => {
+    if (selectedCustomer) {
+      const customerProjects = db.projects.getByCustomerId(selectedCustomer);
+      setFilteredProjects(customerProjects);
+      
+      // Reset project selection if the current project doesn't belong to this customer
+      const currentProjectBelongsToCustomer = customerProjects.some(
+        project => project.id === selectedProject
+      );
+      
+      if (!currentProjectBelongsToCustomer) {
+        setSelectedProject('');
+      }
+    } else {
+      setFilteredProjects(projects);
+    }
+  }, [selectedCustomer, projects, selectedProject]);
   
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -58,20 +92,30 @@ const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
     if (isTracking) {
       // Stop tracking and create entry
       if (seconds > 0) {
-        onTimeEntryCreate({
-          id: Date.now().toString(),
+        if (!selectedProject) {
+          toast.error("Please select a project before stopping the timer");
+          return;
+        }
+        
+        const entry = db.timeEntries.create({
           description: description || 'Untitled task',
           projectId: selectedProject,
+          customerId: selectedCustomer || 
+            projects.find(p => p.id === selectedProject)?.customerId || '',
           startTime: new Date(Date.now() - seconds * 1000).toISOString(),
           endTime: new Date().toISOString(),
           duration: seconds,
+          billable: isBillable,
+          userId: 'current-user' // In a real app, this would be the logged-in user's ID
         });
+        
+        onTimeEntryCreate(entry);
+        toast.success("Time entry saved successfully!");
       }
       
       // Reset tracker
       setSeconds(0);
       setDescription('');
-      setSelectedProject('');
     }
     
     setIsTracking(!isTracking);
@@ -84,26 +128,54 @@ const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
     const minutes = parseInt(manualEntry.minutes || '0');
     const totalSeconds = (hours * 3600) + (minutes * 60);
     
-    if (totalSeconds > 0) {
-      onTimeEntryCreate({
-        id: Date.now().toString(),
-        description: manualEntry.description || 'Untitled task',
-        projectId: manualEntry.project,
-        startTime: new Date(Date.now() - totalSeconds * 1000).toISOString(),
-        endTime: new Date().toISOString(),
-        duration: totalSeconds,
-      });
-      
-      // Reset form
-      setManualEntry({
-        hours: '',
-        minutes: '',
-        description: '',
-        project: '',
-      });
+    if (totalSeconds <= 0) {
+      toast.error("Please enter a valid time duration");
+      return;
     }
     
+    if (!manualEntry.project) {
+      toast.error("Please select a project");
+      return;
+    }
+    
+    const selectedProjectObj = projects.find(p => p.id === manualEntry.project);
+    const customerId = manualEntry.customer || selectedProjectObj?.customerId || '';
+    
+    if (!customerId && !manualEntry.customer) {
+      toast.error("Please select a customer");
+      return;
+    }
+    
+    const entry = db.timeEntries.create({
+      description: manualEntry.description || 'Untitled task',
+      projectId: manualEntry.project,
+      customerId,
+      startTime: new Date(Date.now() - totalSeconds * 1000).toISOString(),
+      endTime: new Date().toISOString(),
+      duration: totalSeconds,
+      billable: manualEntry.billable,
+      userId: 'current-user' // In a real app, this would be the logged-in user's ID
+    });
+    
+    onTimeEntryCreate(entry);
+    toast.success("Time entry saved successfully!");
+    
+    // Reset form
+    setManualEntry({
+      hours: '',
+      minutes: '',
+      description: '',
+      project: '',
+      customer: '',
+      billable: true
+    });
+    
     setIsManualEntryOpen(false);
+  };
+  
+  // Handle customer change in manual entry form
+  const handleManualCustomerChange = (customerId: string) => {
+    setManualEntry({...manualEntry, customer: customerId, project: ''});
   };
   
   return (
@@ -118,6 +190,24 @@ const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
         />
         
         <Select
+          value={selectedCustomer}
+          onValueChange={setSelectedCustomer}
+          disabled={isTracking}
+        >
+          <SelectTrigger className="w-full md:w-40">
+            <SelectValue placeholder="Customer" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All Customers</SelectItem>
+            {customers.map(customer => (
+              <SelectItem key={customer.id} value={customer.id}>
+                {customer.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        <Select
           value={selectedProject}
           onValueChange={setSelectedProject}
           disabled={isTracking}
@@ -126,7 +216,7 @@ const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
             <SelectValue placeholder="Project" />
           </SelectTrigger>
           <SelectContent>
-            {projects.map(project => (
+            {filteredProjects.map(project => (
               <SelectItem key={project.id} value={project.id}>
                 {project.name}
               </SelectItem>
@@ -154,7 +244,20 @@ const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
         </div>
       </div>
       
-      <div className="mt-4 flex justify-end">
+      <div className="mt-4 flex justify-between">
+        <div className="flex items-center">
+          <label className="flex items-center space-x-2 text-sm">
+            <input 
+              type="checkbox" 
+              checked={isBillable} 
+              onChange={() => setIsBillable(!isBillable)}
+              disabled={isTracking}
+              className="rounded border-gray-300"
+            />
+            <span>Billable</span>
+          </label>
+        </div>
+        
         <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="sm" className="text-xs">
@@ -205,6 +308,25 @@ const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
               </div>
               
               <div className="space-y-2">
+                <Label htmlFor="manualCustomer">Customer</Label>
+                <Select
+                  value={manualEntry.customer}
+                  onValueChange={handleManualCustomerChange}
+                >
+                  <SelectTrigger id="manualCustomer">
+                    <SelectValue placeholder="Select a customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map(customer => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
                 <Label htmlFor="manualProject">Project</Label>
                 <Select
                   value={manualEntry.project}
@@ -214,13 +336,32 @@ const TimeTracker = ({ projects, onTimeEntryCreate }: TimeTrackerProps) => {
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects.map(project => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
+                    {manualEntry.customer 
+                      ? projects.filter(p => p.customerId === manualEntry.customer).map(project => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))
+                      : projects.map(project => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))
+                    }
                   </SelectContent>
                 </Select>
+              </div>
+              
+              <div className="flex items-center">
+                <label className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    checked={manualEntry.billable} 
+                    onChange={() => setManualEntry({...manualEntry, billable: !manualEntry.billable})}
+                    className="rounded border-gray-300"
+                  />
+                  <span>Billable</span>
+                </label>
               </div>
               
               <div className="flex justify-end pt-4">

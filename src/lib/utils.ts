@@ -46,3 +46,23 @@ export function calculateTotalHours(timeEntries: any[]): number {
     return total + duration;
   }, 0) / 3600; // Convert seconds to hours
 }
+
+// New utility function for formatting currency
+export function formatCurrency(amount: number, currency: string = 'USD'): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+// Utility function to calculate billable amount
+export function calculateBillableAmount(timeEntries: any[], hourlyRate: number): number {
+  return timeEntries
+    .filter(entry => entry.billable)
+    .reduce((total, entry) => {
+      const hours = entry.duration / 3600; // Convert seconds to hours
+      return total + (hours * hourlyRate);
+    }, 0);
+}
