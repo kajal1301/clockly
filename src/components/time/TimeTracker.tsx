@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Plus, Clock, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,6 +36,7 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
   const [manualEntry, setManualEntry] = useState({
     hours: '',
@@ -49,24 +49,44 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
   
   // Load customers and projects on component mount
   useEffect(() => {
-    setCustomers(db.customers.getAll());
-    setProjects(db.projects.getAll());
+    const fetchData = async () => {
+      try {
+        const customersData = await db.customers.getAll();
+        setCustomers(customersData);
+        
+        const projectsData = await db.projects.getAll();
+        setProjects(projectsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast.error('Failed to load customers and projects');
+      }
+    };
+    
+    fetchData();
   }, []);
   
   // Filter projects when customer changes
   useEffect(() => {
     if (selectedCustomer) {
-      const customerProjects = db.projects.getByCustomerId(selectedCustomer);
-      setFilteredProjects(customerProjects);
+      const fetchProjects = async () => {
+        try {
+          const customerProjects = await db.projects.getByCustomerId(selectedCustomer);
+          setFilteredProjects(customerProjects);
+          
+          // Reset project selection if the current project doesn't belong to this customer
+          const currentProjectBelongsToCustomer = customerProjects.some(
+            project => project.id === selectedProject
+          );
+          
+          if (!currentProjectBelongsToCustomer) {
+            setSelectedProject('');
+          }
+        } catch (error) {
+          console.error('Error fetching projects for customer:', error);
+        }
+      };
       
-      // Reset project selection if the current project doesn't belong to this customer
-      const currentProjectBelongsToCustomer = customerProjects.some(
-        project => project.id === selectedProject
-      );
-      
-      if (!currentProjectBelongsToCustomer) {
-        setSelectedProject('');
-      }
+      fetchProjects();
     } else {
       setFilteredProjects(projects);
     }
@@ -88,7 +108,7 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
     };
   }, [isTracking]);
   
-  const handleStartStop = () => {
+  const handleStartStop = async () => {
     if (isTracking) {
       // Stop tracking and create entry
       if (seconds > 0) {
@@ -97,20 +117,35 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
           return;
         }
         
-        const entry = db.timeEntries.create({
-          description: description || 'Untitled task',
-          projectId: selectedProject,
-          customerId: selectedCustomer || 
-            projects.find(p => p.id === selectedProject)?.customerId || '',
-          startTime: new Date(Date.now() - seconds * 1000).toISOString(),
-          endTime: new Date().toISOString(),
-          duration: seconds,
-          billable: isBillable,
-          userId: 'current-user' // In a real app, this would be the logged-in user's ID
-        });
+        setIsLoading(true);
         
-        onTimeEntryCreate(entry);
-        toast.success("Time entry saved successfully!");
+        try {
+          const newEntry = {
+            description: description || 'Untitled task',
+            project_id: selectedProject,
+            customer_id: selectedCustomer || 
+              projects.find(p => p.id === selectedProject)?.customer_id || '',
+            start_time: new Date(Date.now() - seconds * 1000).toISOString(),
+            end_time: new Date().toISOString(),
+            duration: seconds,
+            billable: isBillable,
+            user_id: 'current-user' // In a real app, this would be the logged-in user's ID
+          };
+          
+          const entry = await db.timeEntries.create(newEntry);
+          
+          if (entry) {
+            onTimeEntryCreate(entry);
+            toast.success("Time entry saved successfully!");
+          } else {
+            toast.error("Failed to save time entry");
+          }
+        } catch (error) {
+          console.error('Error creating time entry:', error);
+          toast.error("An error occurred while saving the time entry");
+        } finally {
+          setIsLoading(false);
+        }
       }
       
       // Reset tracker
@@ -121,7 +156,7 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
     setIsTracking(!isTracking);
   };
   
-  const handleManualEntry = (e: React.FormEvent) => {
+  const handleManualEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const hours = parseInt(manualEntry.hours || '0');
@@ -139,38 +174,53 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
     }
     
     const selectedProjectObj = projects.find(p => p.id === manualEntry.project);
-    const customerId = manualEntry.customer || selectedProjectObj?.customerId || '';
+    const customerId = manualEntry.customer || selectedProjectObj?.customer_id || '';
     
     if (!customerId && !manualEntry.customer) {
       toast.error("Please select a customer");
       return;
     }
     
-    const entry = db.timeEntries.create({
-      description: manualEntry.description || 'Untitled task',
-      projectId: manualEntry.project,
-      customerId,
-      startTime: new Date(Date.now() - totalSeconds * 1000).toISOString(),
-      endTime: new Date().toISOString(),
-      duration: totalSeconds,
-      billable: manualEntry.billable,
-      userId: 'current-user' // In a real app, this would be the logged-in user's ID
-    });
+    setIsLoading(true);
     
-    onTimeEntryCreate(entry);
-    toast.success("Time entry saved successfully!");
-    
-    // Reset form
-    setManualEntry({
-      hours: '',
-      minutes: '',
-      description: '',
-      project: '',
-      customer: '',
-      billable: true
-    });
-    
-    setIsManualEntryOpen(false);
+    try {
+      const newEntry = {
+        description: manualEntry.description || 'Untitled task',
+        project_id: manualEntry.project,
+        customer_id: customerId,
+        start_time: new Date(Date.now() - totalSeconds * 1000).toISOString(),
+        end_time: new Date().toISOString(),
+        duration: totalSeconds,
+        billable: manualEntry.billable,
+        user_id: 'current-user' // In a real app, this would be the logged-in user's ID
+      };
+      
+      const entry = await db.timeEntries.create(newEntry);
+      
+      if (entry) {
+        onTimeEntryCreate(entry);
+        toast.success("Time entry saved successfully!");
+        
+        // Reset form
+        setManualEntry({
+          hours: '',
+          minutes: '',
+          description: '',
+          project: '',
+          customer: '',
+          billable: true
+        });
+        
+        setIsManualEntryOpen(false);
+      } else {
+        toast.error("Failed to save time entry");
+      }
+    } catch (error) {
+      console.error('Error creating manual time entry:', error);
+      toast.error("An error occurred while saving the time entry");
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // Handle customer change in manual entry form
@@ -337,7 +387,7 @@ const TimeTracker = ({ onTimeEntryCreate }: TimeTrackerProps) => {
                   </SelectTrigger>
                   <SelectContent>
                     {manualEntry.customer 
-                      ? projects.filter(p => p.customerId === manualEntry.customer).map(project => (
+                      ? projects.filter(p => p.customer_id === manualEntry.customer).map(project => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.name}
                           </SelectItem>

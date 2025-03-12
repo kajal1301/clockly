@@ -10,19 +10,37 @@ import TimeChart from '@/components/dashboard/TimeChart';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { db, TimeEntry, Project, Customer } from '@/lib/db';
+import { toast } from 'sonner';
 
 const Dashboard = () => {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [date, setDate] = useState(new Date());
+  const [isLoading, setIsLoading] = useState(true);
   
   // Load data from our database service
   useEffect(() => {
-    // In a real app, we'd filter by the current user
-    setTimeEntries(db.timeEntries.getAll());
-    setProjects(db.projects.getAll());
-    setCustomers(db.customers.getAll());
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // In a real app with authentication, we'd filter by the current user
+        const timeEntriesData = await db.timeEntries.getAll();
+        const projectsData = await db.projects.getAll();
+        const customersData = await db.customers.getAll();
+        
+        setTimeEntries(timeEntriesData);
+        setProjects(projectsData);
+        setCustomers(customersData);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast.error('Failed to load dashboard data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchData();
   }, []);
   
   // Chart data
@@ -59,7 +77,7 @@ const Dashboard = () => {
     // In a real app, these would be calculated from actual time entries
     const hoursToday = timeEntries
       .filter(entry => {
-        const entryDate = new Date(entry.endTime);
+        const entryDate = new Date(entry.end_time);
         const today = new Date();
         return (
           entryDate.getDate() === today.getDate() &&
@@ -72,7 +90,7 @@ const Dashboard = () => {
     // Get the number of hours for the current week
     const hoursThisWeek = timeEntries
       .filter(entry => {
-        const entryDate = new Date(entry.endTime);
+        const entryDate = new Date(entry.end_time);
         const today = new Date();
         const firstDayOfWeek = new Date(today);
         firstDayOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Monday
@@ -82,7 +100,7 @@ const Dashboard = () => {
       .reduce((total, entry) => total + (entry.duration / 3600), 0);
     
     // Count unique project IDs in time entries to get active projects
-    const activeProjectIds = new Set(timeEntries.map(entry => entry.projectId));
+    const activeProjectIds = new Set(timeEntries.map(entry => entry.project_id));
     
     return {
       hoursToday,

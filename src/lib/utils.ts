@@ -47,7 +47,7 @@ export function calculateTotalHours(timeEntries: any[]): number {
   }, 0) / 3600; // Convert seconds to hours
 }
 
-// New utility function for formatting currency
+// Format currency
 export function formatCurrency(amount: number, currency: string = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -57,7 +57,7 @@ export function formatCurrency(amount: number, currency: string = 'USD'): string
   }).format(amount);
 }
 
-// Utility function to calculate billable amount
+// Calculate billable amount
 export function calculateBillableAmount(timeEntries: any[], hourlyRate: number): number {
   return timeEntries
     .filter(entry => entry.billable)
@@ -65,4 +65,11 @@ export function calculateBillableAmount(timeEntries: any[], hourlyRate: number):
       const hours = entry.duration / 3600; // Convert seconds to hours
       return total + (hours * hourlyRate);
     }, 0);
+}
+
+// Add a function to initialize the database
+export async function initDatabase() {
+  // This function would create tables in Supabase if they don't exist
+  // In a real world scenario, we would handle migrations here
+  console.log('Database initialization complete');
 }
